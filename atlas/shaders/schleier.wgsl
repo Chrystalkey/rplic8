@@ -12,23 +12,9 @@ struct VertexOut{
 
 @group(0) @binding(0) var<uniform> metadata: Metadata;
 
-@group(1) @binding(0) var map_sampler: sampler;         // the sampler of the map
-@group(1) @binding(1) var map_texture: texture_2d<f32>; // the map texture
-
 @fragment
 fn fragmentMain(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-    // the map is (original_size * zoom) pixels wide/high
-    var map_dims = vec2f(textureDimensions(map_texture, 0));
-    var map_uv = vec2f(uv.x, 1.-uv.y)* metadata.map_zoom;
-
-    // zoom cetered at the WINDOW center (not the map center)
-    map_uv = (map_uv-vec2f(0.5))*metadata.map_zoom+vec2f(0.5);
-    map_uv += metadata.map_translation / map_dims;
-    // scale to map dimensions
-    map_uv = map_uv * (metadata.window_size / map_dims);
-
-    // return vec4f(map_uv, 0.,1.);
-    return vec4f(textureSample(map_texture, map_sampler, map_uv).rgb, 1.);
+    return vec4f(0.);
 }
 
 @vertex

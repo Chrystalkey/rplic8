@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::{mem, num::NonZeroU64};
 
 use bytemuck::{NoUninit, Pod};

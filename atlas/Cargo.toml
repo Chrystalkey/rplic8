@@ -6,12 +6,15 @@ description = "A map panel for roleplaying"
 
 [dependencies]
 anyhow = "1.0.100"
-bytemuck = "1.24.0"
-cgmath = "0.18.0"
+bytemuck = { version = "1.24.0", features = ["derive"] }
+cgmath = { version = "0.18.0", features = [
+    "bytemuck",
+], git = 'https://github.com/rustgd/cgmath' }
 clap = { version = "4.5.48", features = ["derive"] }
 egui = "0.33.0"
 egui-wgpu = "0.33.0"
 egui-winit = "0.33.0"
+image = {version="0.25.8", features = ["png", "jpeg"]}
 tokio = { version = "1.47.1", features = ["tracing", "macros", "fs", "rt-multi-thread"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }

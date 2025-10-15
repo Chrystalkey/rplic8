@@ -1,18 +1,57 @@
 use std::sync::Arc;
 
+use cgmath::Vector2;
 #[allow(unused)]
 use tracing::{debug, error, info, trace};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     window::{Window, WindowId},
 };
 
-mod maprender;
-mod uniform;
+use crate::{
+    maprender::{MapRenderpass, Metadata},
+    renderpass::ColorRenderPass,
+};
 
+mod maprender;
+mod renderpass;
+mod uniform;
+mod schleier;
+
+struct ColorRenderpasses {
+    map_bg_rp: MapRenderpass,
+}
+impl ColorRenderpasses {
+    fn new(
+        queue: &wgpu::Queue,
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+    ) -> Self {
+        Self {
+            map_bg_rp: maprender::MapRenderpass::new(surface_format,&device, &queue),
+        }
+    }
+    fn render(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        col_render_target: &wgpu::TextureView,
+        dep_render_target: Option<&wgpu::TextureView>,
+        ued: Metadata,
+    ) {
+        self.map_bg_rp
+            .render(device, encoder, col_render_target, dep_render_target, ued);
+    }
+    fn reload_shaders(&mut self, device: &wgpu::Device) {
+        self.map_bg_rp.reload_shaders(device);
+    }
+}
+
+/// TODO: This actually has to be a "state-global" structure containing all updated data. `struct ColorRenderpasses` above takes it on himself
+/// to form this into the Uniform structs all the renderpasses require
 struct State {
     window: Arc<Window>,
     device: wgpu::Device,
@@ -20,6 +59,8 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
+    renderpasses: ColorRenderpasses,
+    metadata: Metadata,
 }
 
 impl State {
@@ -30,7 +71,13 @@ impl State {
             .await
             .unwrap();
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor::default())
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: wgpu::Features {
+                    features_wgpu: wgpu::FeaturesWGPU::ADDRESS_MODE_CLAMP_TO_BORDER,
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
             .await
             .unwrap();
 
@@ -40,6 +87,8 @@ impl State {
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
+        let crp = ColorRenderpasses::new(&queue, &device, surface_format);
+
         let state = State {
             window,
             device,
@@ -47,6 +96,17 @@ impl State {
             size,
             surface,
             surface_format,
+            renderpasses: crp,
+            metadata: Metadata {
+                time: 0.,
+                map_zoom: 1.,
+                map_translation: cgmath::Vector2 { x: 0., y: 0. },
+                window_size: cgmath::Vector2 {
+                    x: size.width as f32,
+                    y: size.height as f32,
+                },
+                mouse_pos: cgmath::Vector2 { x: 0., y: 0. },
+            },
         };
 
         // Configure surface for the first time
@@ -76,6 +136,10 @@ impl State {
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         self.size = new_size;
+        self.metadata.window_size = cgmath::Vector2 {
+            x: new_size.width as f32,
+            y: new_size.height as f32,
+        };
 
         // reconfigure the surface
         self.configure_surface();
@@ -99,27 +163,13 @@ impl State {
         // Renders a GREEN screen
         let mut encoder = self.device.create_command_encoder(&Default::default());
         // Create the renderpass which will clear the screen.
-        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Map Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        // If you wanted to call any drawing commands, they would go here.
-        renderpass.draw(0..4, 0..0);
-
-        // End the renderpass.
-        drop(renderpass);
+        self.renderpasses.render(
+            &self.device,
+            &mut encoder,
+            &texture_view,
+            None,
+            self.metadata,
+        );
 
         // Submit the command in the queue to execute
         self.queue.submit([encoder.finish()]);
@@ -131,14 +181,20 @@ impl State {
 #[derive(Default)]
 struct App {
     state: Option<State>,
+    dnd_map_active: bool,
+    dnd_map_dragstart : [f32;2],
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Create window object
+        let min_size= winit::dpi::Size::Logical(
+            winit::dpi::LogicalSize::new(20., 20.)
+        );
+        
         let window = Arc::new(
             event_loop
-                .create_window(Window::default_attributes())
+                .create_window(Window::default_attributes().with_min_inner_size(min_size))
                 .unwrap(),
         );
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -149,21 +205,64 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let state = self.state.as_mut().unwrap();
+        let app_state = self.state.as_mut().unwrap();
+        // reset zoom position
         match event {
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                state.render();
+                app_state.render();
                 // Emits a new redraw requested event.
-                state.get_window().request_redraw();
+                app_state.get_window().request_redraw();
             }
             WindowEvent::Resized(size) => {
                 // Reconfigures the size of the surface. We do not re-render
                 // here as this event is always followed up by redraw request.
-                state.resize(size);
+                app_state.resize(size);
+            }
+            WindowEvent::KeyboardInput { event: KeyEvent { text: Some(input),.. }, .. } => {
+                if input == "r"{
+                    app_state.renderpasses.reload_shaders(&app_state.device)
+                }
+            }
+            WindowEvent::MouseInput { button, state, .. } => {
+                // right click means drag the map
+                
+                match (button, state) {
+                    (winit::event::MouseButton::Right,
+                    winit::event::ElementState::Pressed) => {
+                        self.dnd_map_active = true;
+                        self.dnd_map_dragstart = [app_state.metadata.mouse_pos.x, app_state.metadata.mouse_pos.y];
+                    },
+                    (winit::event::MouseButton::Right,
+                    winit::event::ElementState::Released) => {
+                        self.dnd_map_active = false;
+                    },
+                    _ => {}
+                }
+            }
+
+            WindowEvent::CursorMoved { position, .. } => {
+                app_state.metadata.mouse_pos = cgmath::Vector2 { 
+                    x: position.x as f32, 
+                    y: app_state.metadata.window_size.y - position.y as f32
+                };
+                if self.dnd_map_active {
+                    app_state.metadata.map_translation = Vector2{
+                        x: self.dnd_map_dragstart[0]- app_state.metadata.mouse_pos.x,
+                        y: app_state.metadata.mouse_pos.y - self.dnd_map_dragstart[1],
+                    };
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let delta = match delta{
+                    winit::event::MouseScrollDelta::LineDelta(_, dy) => {dy},
+                    winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32
+                };
+                let old_zoom = app_state.metadata.map_zoom;
+                app_state.metadata.map_zoom = f32::clamp(old_zoom*(1.+delta/4.), 0.1, 10.);
             }
             _ => (),
         }
