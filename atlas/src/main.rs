@@ -18,8 +18,8 @@ use crate::{
 
 mod maprender;
 mod renderpass;
-mod uniform;
 mod schleier;
+mod uniform;
 
 struct ColorRenderpasses {
     map_bg_rp: MapRenderpass,
@@ -31,7 +31,7 @@ impl ColorRenderpasses {
         surface_format: wgpu::TextureFormat,
     ) -> Self {
         Self {
-            map_bg_rp: maprender::MapRenderpass::new(surface_format,&device, &queue),
+            map_bg_rp: maprender::MapRenderpass::new(surface_format, &device, &queue),
         }
     }
     fn render(
@@ -178,20 +178,29 @@ impl State {
     }
 }
 
-#[derive(Default)]
 struct App {
     state: Option<State>,
     dnd_map_active: bool,
-    dnd_map_dragstart : [f32;2],
+    dnd_map_dragstart: Vector2<f32>,
+    // movement accumulator (=sum of previous movements)
+    dnd_map_movacc: Vector2<f32>,
+}
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            state: None,
+            dnd_map_active: false,
+            dnd_map_dragstart: Vector2 { x: 0., y: 0. },
+            dnd_map_movacc: Vector2 { x: 0., y: 0. },
+        }
+    }
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Create window object
-        let min_size= winit::dpi::Size::Logical(
-            winit::dpi::LogicalSize::new(20., 20.)
-        );
-        
+        let min_size = winit::dpi::Size::Logical(winit::dpi::LogicalSize::new(20., 20.));
+
         let window = Arc::new(
             event_loop
                 .create_window(Window::default_attributes().with_min_inner_size(min_size))
@@ -222,47 +231,52 @@ impl ApplicationHandler for App {
                 // here as this event is always followed up by redraw request.
                 app_state.resize(size);
             }
-            WindowEvent::KeyboardInput { event: KeyEvent { text: Some(input),.. }, .. } => {
-                if input == "r"{
+            WindowEvent::KeyboardInput {
+                event: KeyEvent {
+                    text: Some(input), ..
+                },
+                ..
+            } => {
+                if input == "r" {
                     app_state.renderpasses.reload_shaders(&app_state.device)
                 }
             }
             WindowEvent::MouseInput { button, state, .. } => {
                 // right click means drag the map
-                
+
                 match (button, state) {
-                    (winit::event::MouseButton::Right,
-                    winit::event::ElementState::Pressed) => {
+                    (winit::event::MouseButton::Right, winit::event::ElementState::Pressed) => {
                         self.dnd_map_active = true;
-                        self.dnd_map_dragstart = [app_state.metadata.mouse_pos.x, app_state.metadata.mouse_pos.y];
-                    },
-                    (winit::event::MouseButton::Right,
-                    winit::event::ElementState::Released) => {
+                        self.dnd_map_dragstart = app_state.metadata.mouse_pos;
+                    }
+                    (winit::event::MouseButton::Right, winit::event::ElementState::Released) => {
+                        self.dnd_map_movacc = app_state.metadata.map_translation;
                         self.dnd_map_active = false;
-                    },
+                    }
                     _ => {}
                 }
             }
 
             WindowEvent::CursorMoved { position, .. } => {
-                app_state.metadata.mouse_pos = cgmath::Vector2 { 
-                    x: position.x as f32, 
-                    y: app_state.metadata.window_size.y - position.y as f32
+                app_state.metadata.mouse_pos = cgmath::Vector2 {
+                    x: position.x as f32,
+                    y: app_state.metadata.window_size.y - position.y as f32,
                 };
                 if self.dnd_map_active {
-                    app_state.metadata.map_translation = Vector2{
-                        x: self.dnd_map_dragstart[0]- app_state.metadata.mouse_pos.x,
-                        y: app_state.metadata.mouse_pos.y - self.dnd_map_dragstart[1],
-                    };
+                    app_state.metadata.map_translation = self.dnd_map_movacc
+                        + Vector2 {
+                            x: self.dnd_map_dragstart.x - app_state.metadata.mouse_pos.x,
+                            y: app_state.metadata.mouse_pos.y - self.dnd_map_dragstart.y,
+                        };
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let delta = match delta{
-                    winit::event::MouseScrollDelta::LineDelta(_, dy) => {dy},
-                    winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32
+                let delta = match delta {
+                    winit::event::MouseScrollDelta::LineDelta(_, dy) => dy,
+                    winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
                 };
                 let old_zoom = app_state.metadata.map_zoom;
-                app_state.metadata.map_zoom = f32::clamp(old_zoom*(1.+delta/4.), 0.1, 10.);
+                app_state.metadata.map_zoom = f32::clamp(old_zoom * (1. + delta / 4.), 0.1, 10.);
             }
             _ => (),
         }

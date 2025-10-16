@@ -27,12 +27,11 @@ impl SamplerData {
     fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         // For more texture loading see: https://sotrh.github.io/learn-wgpu/beginner/tutorial5-textures/#getting-data-into-a-texture
         let image: image::RgbaImage = image::load(
-            std::io::BufReader::new(
-                std::fs::File::open(IMAGE_NAME).unwrap(),
-            ),
+            std::io::BufReader::new(std::fs::File::open(IMAGE_NAME).unwrap()),
             image::ImageFormat::Png,
         )
-        .unwrap().into();
+        .unwrap()
+        .into();
         let (w, h) = image.dimensions();
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
@@ -158,7 +157,7 @@ impl MapRenderpass {
             &self.sampler_data.bind_group,
         ]
     }
-    pub fn reload_shaders(&mut self, device: &wgpu::Device){
+    pub fn reload_shaders(&mut self, device: &wgpu::Device) {
         self.pipeline = Self::create_pipeline(device, self.color_format);
     }
 }
@@ -173,11 +172,7 @@ impl ColorRenderPass<Metadata> for MapRenderpass {
             ..Default::default()
         };
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            source: wgpu::ShaderSource::Wgsl(
-                std::fs::read_to_string(SHADER_NAME)
-                    .unwrap()
-                    .into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(std::fs::read_to_string(SHADER_NAME).unwrap().into()),
             label: None,
         });
         let rpl_desc = wgpu::RenderPipelineDescriptor {

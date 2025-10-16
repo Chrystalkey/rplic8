@@ -19,11 +19,12 @@ struct VertexOut{
 fn fragmentMain(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     // the map is (original_size * zoom) pixels wide/high
     var map_dims = vec2f(textureDimensions(map_texture, 0));
-    var map_uv = vec2f(uv.x, 1.-uv.y)* metadata.map_zoom;
+    var map_uv = vec2f(uv.x, 1.-uv.y);
+    map_uv = map_uv + (metadata.map_translation / metadata.window_size);
 
     // zoom cetered at the WINDOW center (not the map center)
     map_uv = (map_uv-vec2f(0.5))*metadata.map_zoom+vec2f(0.5);
-    map_uv += metadata.map_translation / map_dims;
+
     // scale to map dimensions
     map_uv = map_uv * (metadata.window_size / map_dims);
 
