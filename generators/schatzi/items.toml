@@ -1,0 +1,47 @@
+[pakete]
+# Pakete sind _IMMER_ vorhanden im Area
+reise = [
+    "Amulett",
+    "Becher", "Beil/Handaxt","Essbesteck",
+    "Wolldecke","Feuerstein und Stahl",
+    "Kletterseil", "Lederrucksack",
+    "Messer", "Nadel- und Zwirnset",
+    "Fackel", "Proviant",
+    "Holzschale","Verband", "Waffenpflegeset (Schleifstein, Tücher)",
+    "Wasserschlauch", "Wurfhaken",
+    "Zunder"]
+wildnis = [
+    "Beil", "Wolldecke", "Feuerstein und Stahl","Kletterseil, 10 Schritt",
+    "Lederrucksack", "Messer", "Nadel- und Zwirnset", "Fackel", 
+    "Proviant", "Holzschale", "Verband", "Wasserschlauch", "Wurfhaken", "Zelt", "Zunder"
+]
+stadt = [
+    "Kohlestift", "Lampenöl", "Messer", "Nadel- und Zwirnset", "Öllampe", "Papier", "Verband", "Zunder"
+]
+
+[items]
+items = [
+    "Götterfigur Rondra",
+    "Götterfigur Praios",
+    "Götterfigur Angrosch",
+    "Götterfigur Peraine",
+    "Götterfigur Boron",
+    "Götterfigur Raja",
+    "Götterfigur Hesinde",
+    "Götterfigur Efferd",
+    "Götterfigur Phex",
+]
+
+[waffen]
+dolche = ["Messer", "Dolch", "Linkhand", "Schwerer Dolch", "Basiliskenzunge",  "Drachenzahn", "Waqqif"]
+
+fechtwaffen = ["Florett", "Rapier", "Wolfsmesser"]
+
+hiebwaffen = ["Knüppel", "Keule", "Streitaxt", "Streitkolben", "Magierstab, Mittel", "Brabakbengel", "Orknase", "Lindwurmschläger"]
+
+kettenwaffen = ["Morgenstern"]
+lanzen = ["kriegslanze"]
+raufen = ["schlagring"]
+
+schilde = ["Holzschild", "Lederschild", "Thorwalerschild", "Großschild"]
+schwerter = ["Entermesser", "Kurzschwert"]

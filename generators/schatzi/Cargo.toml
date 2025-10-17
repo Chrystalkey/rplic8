@@ -1,0 +1,7 @@
+[package]
+name = "schatzi"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+generate = {path="../../generate"}
