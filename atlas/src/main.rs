@@ -18,7 +18,6 @@ use crate::{
 
 mod maprender;
 mod renderpass;
-mod schleier;
 mod uniform;
 
 struct ColorRenderpasses {
@@ -61,6 +60,7 @@ struct State {
     surface_format: wgpu::TextureFormat,
     renderpasses: ColorRenderpasses,
     metadata: Metadata,
+    start_time: std::time::Instant,
 }
 
 impl State {
@@ -107,6 +107,7 @@ impl State {
                 },
                 mouse_pos: cgmath::Vector2 { x: 0., y: 0. },
             },
+            start_time: std::time::Instant::now(),
         };
 
         // Configure surface for the first time
@@ -159,7 +160,7 @@ impl State {
                 format: Some(self.surface_format.add_srgb_suffix()),
                 ..Default::default()
             });
-
+        self.metadata.time = (std::time::Instant::now() - self.start_time).as_secs_f32();
         // Renders a GREEN screen
         let mut encoder = self.device.create_command_encoder(&Default::default());
         // Create the renderpass which will clear the screen.

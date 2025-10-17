@@ -17,9 +17,6 @@ pub struct Metadata {
 }
 
 struct SamplerData {
-    sampler: wgpu::Sampler,
-    texture: wgpu::Texture,
-    texview: wgpu::TextureView,
     bind_group: wgpu::BindGroup,
 }
 
@@ -92,9 +89,6 @@ impl SamplerData {
             ],
         });
         Self {
-            sampler,
-            texture,
-            texview,
             bind_group,
         }
     }
