@@ -1,25 +1,29 @@
-// follows the convention:
-pub struct LootItem{
-    variant: LootItem,
-    name: &'static str,
+use std::iter::Iterator;
+
+use crate::money::Coins;
+
+type Gram = u32;
+
+pub struct LootItemRecord {
+    handle: String,
+    name: String,
+    max_pp: u8,
 }
 
+pub struct LootStash {
+    all_items: Vec<LootItemRecord>,
+}
+impl LootStash {
+    fn new(db_path: &str) -> Self {
+        todo!("Load items from Database")
+    }
+}
 
-/// contains the max value found on any one person
-pub enum LootItemType {
-    Knife,
-    Amulet,
-    Godfigurine,
-    Ring,
-    Gemstone,
-    Necklace,
-    Belt,
-    Rope,
-    Tankard,
-    Cup,
-    Book,
-    Coalpencil,
-    Chalk,
-    PotionHealing,
-    Poison,
+pub struct PersonLootItems(Vec<(LootItemRecord, u32)>);
+
+impl Iterator for LootStash {
+    type Item = PersonLootItems;
+    fn next(&mut self) -> Option<PersonLootItems> {
+        todo!()
+    }
 }
