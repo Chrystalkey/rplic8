@@ -4,6 +4,7 @@ struct Metadata{
     map_translation: vec2f,       // the movement of the map in pixels
     window_size: vec2f,           // window size in pixels
     mouse_pos: vec2f,
+    dnd_map_movacc: vec2f,        // dnd movement accumulator
 }
 struct VertexOut{
     @builtin(position) position: vec4f,

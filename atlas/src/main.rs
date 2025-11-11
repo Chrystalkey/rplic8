@@ -16,6 +16,7 @@ use crate::{
     renderpass::ColorRenderPass,
 };
 
+mod figure_render;
 mod maprender;
 mod renderpass;
 mod uniform;
@@ -51,7 +52,7 @@ impl ColorRenderpasses {
 
 /// TODO: This actually has to be a "state-global" structure containing all updated data. `struct ColorRenderpasses` above takes it on himself
 /// to form this into the Uniform structs all the renderpasses require
-struct State {
+struct RenderState {
     window: Arc<Window>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -63,8 +64,8 @@ struct State {
     start_time: std::time::Instant,
 }
 
-impl State {
-    async fn new(window: Arc<Window>) -> State {
+impl RenderState {
+    async fn new(window: Arc<Window>) -> RenderState {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions::default())
@@ -89,7 +90,7 @@ impl State {
 
         let crp = ColorRenderpasses::new(&queue, &device, surface_format);
 
-        let state = State {
+        let state = RenderState {
             window,
             device,
             queue,
@@ -106,6 +107,7 @@ impl State {
                     y: size.height as f32,
                 },
                 mouse_pos: cgmath::Vector2 { x: 0., y: 0. },
+                dnd_map_movacc: cgmath::Vector2 { x: 0., y: 0. },
             },
             start_time: std::time::Instant::now(),
         };
@@ -179,20 +181,23 @@ impl State {
     }
 }
 
-struct App {
-    state: Option<State>,
-    dnd_map_active: bool,
-    dnd_map_dragstart: Vector2<f32>,
-    // movement accumulator (=sum of previous movements)
-    dnd_map_movacc: Vector2<f32>,
+#[derive(PartialEq)]
+enum DNDState {
+    Free,
+    Left,
+    Right,
 }
-impl Default for App {
-    fn default() -> Self {
+struct App {
+    state: Option<RenderState>,
+    dnd_state: DNDState,
+    dnd_start: Vector2<f32>,
+}
+impl App {
+    fn new() -> Self {
         Self {
             state: None,
-            dnd_map_active: false,
-            dnd_map_dragstart: Vector2 { x: 0., y: 0. },
-            dnd_map_movacc: Vector2 { x: 0., y: 0. },
+            dnd_state: DNDState::Free,
+            dnd_start: Vector2 { x: 0., y: 0. },
         }
     }
 }
@@ -208,7 +213,7 @@ impl ApplicationHandler for App {
                 .unwrap(),
         );
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let state = rt.block_on(State::new(window.clone()));
+        let state = rt.block_on(RenderState::new(window.clone()));
         self.state = Some(state);
 
         window.request_redraw();
@@ -247,12 +252,28 @@ impl ApplicationHandler for App {
 
                 match (button, state) {
                     (winit::event::MouseButton::Right, winit::event::ElementState::Pressed) => {
-                        self.dnd_map_active = true;
-                        self.dnd_map_dragstart = app_state.metadata.mouse_pos;
+                        if self.dnd_state == DNDState::Free {
+                            self.dnd_state = DNDState::Right;
+                            self.dnd_start = app_state.metadata.mouse_pos;
+                        }
                     }
                     (winit::event::MouseButton::Right, winit::event::ElementState::Released) => {
-                        self.dnd_map_movacc = app_state.metadata.map_translation;
-                        self.dnd_map_active = false;
+                        if self.dnd_state == DNDState::Right {
+                            self.dnd_state = DNDState::Free;
+                            app_state.metadata.dnd_map_movacc = app_state.metadata.map_translation;
+                        }
+                    }
+                    (winit::event::MouseButton::Left, winit::event::ElementState::Pressed) => {
+                        if self.dnd_state == DNDState::Free {
+                            self.dnd_state = DNDState::Left;
+                            self.dnd_start = app_state.metadata.mouse_pos;
+                        }
+                    }
+                    (winit::event::MouseButton::Left, winit::event::ElementState::Released) => {
+                        if self.dnd_state == DNDState::Left {
+                            self.dnd_state = DNDState::Free;
+                            self.dnd_start = app_state.metadata.mouse_pos;
+                        }
                     }
                     _ => {}
                 }
@@ -263,12 +284,15 @@ impl ApplicationHandler for App {
                     x: position.x as f32,
                     y: app_state.metadata.window_size.y - position.y as f32,
                 };
-                if self.dnd_map_active {
-                    app_state.metadata.map_translation = self.dnd_map_movacc
+                if self.dnd_state == DNDState::Right {
+                    app_state.metadata.map_translation = app_state.metadata.dnd_map_movacc
                         + Vector2 {
-                            x: self.dnd_map_dragstart.x - app_state.metadata.mouse_pos.x,
-                            y: app_state.metadata.mouse_pos.y - self.dnd_map_dragstart.y,
+                            x: self.dnd_start.x - app_state.metadata.mouse_pos.x,
+                            y: app_state.metadata.mouse_pos.y - self.dnd_start.y,
                         };
+                }
+                if self.dnd_state == DNDState::Left {
+                    //TODO
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
@@ -311,6 +335,6 @@ fn main() {
     // the background.
     // event_loop.set_control_flow(ControlFlow::Wait);
 
-    let mut app = App::default();
+    let mut app = App::new();
     event_loop.run_app(&mut app).unwrap();
 }

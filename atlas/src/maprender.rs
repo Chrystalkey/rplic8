@@ -14,6 +14,8 @@ pub struct Metadata {
     pub map_translation: Vector2<f32>,
     pub window_size: Vector2<f32>,
     pub mouse_pos: Vector2<f32>,
+    // movement accumulator (=sum of previous movements)
+    pub dnd_map_movacc: Vector2<f32>,
 }
 
 struct SamplerData {
@@ -88,9 +90,7 @@ impl SamplerData {
                 },
             ],
         });
-        Self {
-            bind_group,
-        }
+        Self { bind_group }
     }
 
     fn bglayout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
